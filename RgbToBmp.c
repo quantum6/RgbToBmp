@@ -24,7 +24,7 @@ typedef struct
     WORD    bfReserved2;
     DWORD   bfOffBits;
 } BMP_FILE_HEADER;
- 
+
 typedef struct{
     DWORD      biSize;
     LONG       biWidth;
@@ -42,7 +42,7 @@ typedef struct{
 #pragma pack()
 
 
-int rgbaToBmpFile(char *pFileName, unsigned char* pRgbaData, int nWidth , int nHeight)
+int rgbaToBmpFile(const char *pFileName, const char* pRgbaData, const int nWidth, const int nHeight, const int format)
 {
     BMP_FILE_HEADER bmpHeader;
     BMP_INFO_HEADER bmpInfo;
@@ -62,7 +62,7 @@ int rgbaToBmpFile(char *pFileName, unsigned char* pRgbaData, int nWidth , int nH
     bmpHeader.bfReserved2   = 0;
     bmpHeader.bfOffBits     = sizeof(BMP_FILE_HEADER) + sizeof(BMP_INFO_HEADER);
     bmpHeader.bfSize        = bmpHeader.bfOffBits     + pixcelBytes;
-  
+
     bmpInfo.biSize          = sizeof(BMP_INFO_HEADER);
     bmpInfo.biWidth         = nWidth;
     /** 这样图片才不会倒置 */
@@ -75,10 +75,10 @@ int rgbaToBmpFile(char *pFileName, unsigned char* pRgbaData, int nWidth , int nH
     bmpInfo.biYPelsPerMeter = 100;
     bmpInfo.biClrUsed       = 0;
     bmpInfo.biClrImportant  = 0;
- 
+
 
     /** convert in memort, then write to file. */
-    pBmpSource = malloc(pixcelBytes);
+    pBmpSource = (char*)malloc(pixcelBytes);
     if (!pBmpSource)
     {
         return -1;
@@ -103,52 +103,76 @@ int rgbaToBmpFile(char *pFileName, unsigned char* pRgbaData, int nWidth , int nH
            pBmpData[0] = pRgbaData[2];
            pBmpData[1] = pRgbaData[1];
            pBmpData[2] = pRgbaData[0];
-	       pRgbaData += FORMAT_RGBA;
-           pBmpData  += FORMAT_RGB;
+           pRgbaData  += format;
+           pBmpData   += FORMAT_RGB;
         }
         //pack for 4 bytes
-        pBmpData +=(bytesPerLine - nWidth*3);
+        pBmpData +=(bytesPerLine - nWidth*FORMAT_RGB);
     }
     fwrite(pBmpSource, pixcelBytes, 1, fp);
 
     /** close and release。 */
-    fclose(fp);  
+    fclose(fp);
     free(pBmpSource);
 
     return 0;
 }
 
-
-int clipRgbaToBmpFile(char *pFileName, unsigned char* pRgbaData, int nWidth , int nHeight,
-    int nClipLeft, int nClipTop, int nClipWidth, int nClipHeight)
+int clipRgbaToBmpFile(const char *pFileName, const char* pRgbaData,
+    const int nWidth, const int nHeight, const int format,
+    const int nClipLeft, const int nClipTop, const int nClipWidth, const int nClipHeight)
 {
     char* pClipSource     = NULL;
     char* pClipData       = NULL;
-    int pixcelBytes       = nClipWidth*nClipHeight*4;
+    int pixcelBytes       = nClipWidth*nClipHeight*format;
     int i = 0;
 
-    pClipSource = malloc(pixcelBytes);
+    pClipSource = (char*)malloc(pixcelBytes);
     if (!pClipSource)
     {
         return -1;
     }
 
     //move to right position
-    pRgbaData += nClipTop * nWidth * 4;
-    pRgbaData += nClipLeft * 4;
+    pRgbaData += nClipTop  * nWidth * format;
+    pRgbaData += nClipLeft          * format;
 
     pClipData = pClipSource;
     for (i=0; i<nClipHeight; i++)
     {
-        memcpy(pClipData, pRgbaData, nClipWidth*4);
-        pRgbaData += nWidth    * 4;
-        pClipData += nClipWidth* 4;
+        memcpy(pClipData, pRgbaData, nClipWidth*format);
+        pRgbaData += nWidth    * format;
+        pClipData += nClipWidth* format;
     }
 
-    rgbaToBmpFile(pFileName, pClipSource, nClipWidth, nClipHeight);
+    rgbaToBmpFile(pFileName, pClipSource, nClipWidth, nClipHeight, format);
 
     //release
     free(pClipSource);
 
     return 0;
+}
+
+int main(const int argc, const char** argv)
+{
+    int  width  = 640;
+    int  height = 360;
+    int  format = FORMAT_RGB;
+    char colorR = 0xFF;
+    char colorG = 0x00;
+    char colorB = 0x00;
+
+    int size=width*height*format;
+    char* pRgb=(char*)malloc(size);
+    
+    for (int i=0; i<width*height; i++)
+    {
+        pRgb[i*format]   = colorR;
+        pRgb[i*format+1] = colorG;
+        pRgb[i*format+2] = colorB;
+    }
+    
+    rgbaToBmpFile((char*)"test.bmp", pRgb, width, height, format);
+
+    free(pRgb);
 }
